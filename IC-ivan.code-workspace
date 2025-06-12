@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../XNOR-Net-PyTorch"
+		}
+	],
+	"settings": {}
+}
