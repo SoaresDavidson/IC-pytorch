@@ -81,39 +81,54 @@ class Conv2dBinary(nn.Conv2d):
             input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups
         )
         return output
+class LinearBinary(nn.Linear):
+    def __init__(self, in_features, out_features, bias=False):
+        super().__init__(in_features, out_features, bias=bias)
 
-class LeNet5(nn.Module):
+    def forward(self, input):
+        # Binarize the weights before the linear transformation
+        weight_binarized = Binarize()(self.weight)
+        
+        # Perform the linear operation using the binarized weights
+        output = F.linear(input, weight_binarized, self.bias)
+        return output
+class LeNet5Binary(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
+
         self.layer1 = nn.Sequential(
-        Conv2dBinary(1, 6, kernel_size=5, stride=1, padding=0),
+        nn.Conv2d(1, 6, kernel_size=5, stride=1, padding=0),
         nn.BatchNorm2d(6),
         nn.ReLU(),
-        nn.MaxPool2d(kernel_size = 2, stride = 2))
+        nn.MaxPool2d(kernel_size = 2, stride = 2)
+        )
+
         self.layer2 = nn.Sequential(
-        Conv2dBinary(6, 16, kernel_size=5, stride=1, padding=0),
+        nn.Conv2d(6, 16, kernel_size=5, stride=1, padding=0),
         nn.BatchNorm2d(16),
         nn.ReLU(),
-        nn.MaxPool2d(kernel_size = 2, stride = 2))
-        self.fc = nn.Linear(400, 120)
-        self.relu = nn.ReLU()
-        self.fc1 = nn.Linear(120, 84)
-        self.relu1 = nn.ReLU()
+        nn.MaxPool2d(kernel_size = 2, stride = 2)
+        )
+        
+        self.fcb = LinearBinary(400, 120)
+        self.bin = Binarize()
+        self.fc1b = LinearBinary(120, 84)
+        self.bin1 = Binarize()
         self.fc2 = nn.Linear(84, num_classes)
 
     def forward(self, x):
         out = self.layer1(x)
         out = self.layer2(out)
         out = torch.flatten(out, start_dim=1)
-        out = self.fc(out)
-        out = self.relu(out)
-        out = self.fc1(out)
-        out = self.relu1(out)
+        out = self.fcb(out)
+        out = self.bin(out)
+        out = self.fc1b(out)
+        out = self.bin1(out)
         out = self.fc2(out)
         return out
     
     
-model = LeNet5(num_classes).to(device)
+model = LeNet5Binary(num_classes).to(device)
     
 #Setting the loss function
 cost = nn.CrossEntropyLoss()

@@ -3,3 +3,5 @@ myvenv
 artigos
 .vscode
 udemy
+__pycache__
+*.pyc
