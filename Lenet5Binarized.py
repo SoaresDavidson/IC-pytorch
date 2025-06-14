@@ -5,44 +5,27 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.nn.functional as F
 from torch.autograd import Function
+import yaml
+from datasets import load_dataset
+
+with open('config.yaml', 'r') as f:
+    config = yaml.safe_load(f)
     
 # Define relevant variables for the ML task
-batch_size = 64
-num_classes = 10
-learning_rate = 0.001
-num_epochs = 10
+batch_size = config["hyperparameters"]["batch_size"]
+num_classes = config["hyperparameters"]["num_classes"]
+learning_rate = config["hyperparameters"]["lr"]
+num_epochs = config["hyperparameters"]["num_epochs"]
     
 # Device will determine whether to run the training on GPU or CPU.
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-#Loading the dataset and preprocessing
-train_dataset = torchvision.datasets.MNIST(root = './data',
-                                               train = True,
-                                               transform = transforms.Compose([
-                                                      transforms.Resize((32,32)),
-                                                      transforms.ToTensor(),
-                                                      transforms.Normalize(mean = (0.1307,), std = (0.3081,))]),
-                                               download = True)
-    
-    
-test_dataset = torchvision.datasets.MNIST(root = './data',
-                                              train = False,
-                                              transform = transforms.Compose([
-                                                      transforms.Resize((32,32)),
-                                                      transforms.ToTensor(),
-                                                      transforms.Normalize(mean = (0.1325,), std = (0.3105,))]),
-                                              download=True)
-    
-    
-train_loader = torch.utils.data.DataLoader(dataset = train_dataset,
-                                               batch_size = batch_size,
-                                               shuffle = True)
-    
-    
-test_loader = torch.utils.data.DataLoader(dataset = test_dataset,
-                                               batch_size = batch_size,
-                                               shuffle = True)
+dataset_name = config['dataset']['name']
+data_path = config['dataset']['path']
 
+print(f'Carregando banco [{dataset_name}]')
+
+train_loader, test_loader = load_dataset(name=dataset_name ,batch_size=batch_size)
 class BinFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
@@ -50,7 +33,7 @@ class BinFunction(torch.autograd.Function):
         return torch.sign(x)
     
     @staticmethod
-    def backward(ctx, grad_output):
+    def backward(ctx, grad_output): # type: ignore
         input, = ctx.saved_tensors
         grad_input = grad_output.clone()
         grad_input[input.ge(1)] = 0
@@ -71,12 +54,8 @@ class Conv2dBinary(nn.Conv2d):
         )
     
     def forward(self, input):
-        # Binariza os pesos ANTES de realizar a convolução
-        # weight_binarized é o tensor de pesos binarizados (-1 ou +1)
         weight_binarized = Binarize()(self.weight)
 
-        # Realiza a operação de convolução usando os pesos binarizados
-        # F.conv2d é a função de convolução de baixo nível
         output = F.conv2d(
             input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups
         )
@@ -86,10 +65,8 @@ class LinearBinary(nn.Linear):
         super().__init__(in_features, out_features, bias=bias)
 
     def forward(self, input):
-        # Binarize the weights before the linear transformation
         weight_binarized = Binarize()(self.weight)
         
-        # Perform the linear operation using the binarized weights
         output = F.linear(input, weight_binarized, self.bias)
         return output
 class LeNet5Binary(nn.Module):
@@ -104,9 +81,9 @@ class LeNet5Binary(nn.Module):
         )
 
         self.layer2 = nn.Sequential(
-        nn.Conv2d(6, 16, kernel_size=5, stride=1, padding=0),
+        Conv2dBinary(6, 16, kernel_size=5, stride=1, padding=0),
         nn.BatchNorm2d(16),
-        nn.ReLU(),
+        Binarize(),
         nn.MaxPool2d(kernel_size = 2, stride = 2)
         )
         

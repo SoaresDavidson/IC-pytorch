@@ -29,46 +29,48 @@ class LeNet5(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
 
-        self.convLayer = nn.Sequential(
-            nn.Conv2d(1, 6, kernel_size=5, stride=1, padding=0),#mudar o canal de entrada pare 3 caso usar a cifar10
-            # nn.BatchNorm2d(6),
-            nn.Tanh(),
-            nn.AvgPool2d(kernel_size = 2, stride = 2)
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(1, 6, kernel_size=5, stride=1, padding=0),
+            nn.BatchNorm2d(6),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size = 2, stride = 2)
         )
 
-        self.convLayer1 = nn.Sequential(
+        self.layer2 = nn.Sequential(
             nn.Conv2d(6, 16, kernel_size=5, stride=1, padding=0),
-            # nn.BatchNorm2d(16),
-            nn.Tanh(),
-            nn.AvgPool2d(kernel_size = 2, stride = 2)
-        )
-
-        self.convLayer2 = nn.Sequential(
-            nn.Conv2d(in_channels=16, out_channels=120, kernel_size=5),
-            # nn.BatchNorm2d(120),
-            nn.Tanh(),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size = 2, stride = 2)
         )
 
         self.linearLayer = nn.Sequential(
+            nn.Linear(400, 120),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+
             nn.Linear(120, 84),
-            nn.Tanh(),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+
             nn.Linear(84, num_classes)
         )
 
     def forward(self, x):
-        out = self.convLayer(x)
-        out = self.convLayer1(out)
-        out = self.convLayer2(out)
+        out = self.layer1(x)
+        out = self.layer2(out)
         out = torch.flatten(out, start_dim=1)
         out = self.linearLayer(out)
         return out
     
 model = LeNet5(num_classes).to(device)
     
-cost = nn.CrossEntropyLoss() #correto seria usar mseloss
+
+cost = nn.CrossEntropyLoss()
     
+
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     
+
 total_step = len(train_loader)
 
 for epoch in range(num_epochs):
@@ -77,20 +79,18 @@ for epoch in range(num_epochs):
         images = images.to(device)
         labels = labels.to(device)
             
-        #Forward pass
+
         outputs = model(images)
         loss = cost(outputs, labels)
-        #Backward and optimize
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         if (i+1) % 400 == 0:
             print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, num_epochs, i+1, total_step, loss.item()))
 
-# Test the model
-# In the test phase, we don't need to compute gradients (for memory efficiency)
 
-model.eval()  # Set the model to evaluation mode
+model.eval() 
 
 with torch.no_grad():
     correct = 0

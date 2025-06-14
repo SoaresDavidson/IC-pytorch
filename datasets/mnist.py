@@ -8,7 +8,9 @@ def get_loaders(batch_size):
                                                transform = transforms.Compose([
                                                       transforms.Resize((32,32)),
                                                       transforms.ToTensor(),
-                                                      transforms.Normalize(mean = (0.1307,), std = (0.3081,))]),
+                                                #       transforms.Lambda(lambda x: 1.175 * (1 - x)),
+                                                      transforms.Normalize(mean = (0.1307,), std = (0.3081,))
+                                                      ]),
                                                download = True)
     
     
@@ -17,7 +19,9 @@ def get_loaders(batch_size):
                                                 transform = transforms.Compose([
                                                         transforms.Resize((32,32)),
                                                         transforms.ToTensor(),
-                                                        transforms.Normalize(mean = (0.1325,), std = (0.3105,))]),
+                                                        # transforms.Lambda(lambda x: 1.175 * (1 - x)),
+                                                        transforms.Normalize(mean = (0.1325,), std = (0.3105,)),
+                                                        ]),
                                                 download=True)
         
         

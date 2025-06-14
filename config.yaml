@@ -2,7 +2,7 @@ hyperparameters:
   batch_size: 64
   num_classes: 10
   lr: 0.001
-  num_epochs: 20
+  num_epochs: 10
 dataset:
-  name: 'fashionmnist'
-  path: './data/fashionmnist'
+  name: 'mnist'
+  path: './data/mnist'
