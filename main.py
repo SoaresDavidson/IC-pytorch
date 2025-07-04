@@ -31,9 +31,7 @@ print(model.modules)
 
 cost = nn.CrossEntropyLoss()
     
-binop = BinOp(model)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    
 
 total_step = len(train_loader.dataset) #type: ignore
 print(total_step)
@@ -43,20 +41,13 @@ for epoch in range(num_epochs):
         images = images.to(device)
         labels = labels.to(device)
         optimizer.zero_grad()
-        
-        binop.binarization()
 
         outputs = model(images)
         loss = cost(outputs, labels)
         loss.backward()
 
-        binop.restore()
-        binop.updateBinaryGradWeight()
-
-
-
         optimizer.step()
-        if (i+1) % 400 == 0:
+        if (i) % 100 == 0:
             print (f'Epoch [{epoch+1}/{num_epochs}], Step [{i * len(images)}/{total_step}], Loss: {loss.item():.4f}')
 
 
@@ -65,7 +56,7 @@ model.eval()
 with torch.no_grad():
     correct = 0
     total = 0
-    binop.binarization()
+
     for images, labels in test_loader:
         images,labels = images.to(device), labels.to(device)
         
@@ -74,7 +65,6 @@ with torch.no_grad():
         
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
-    binop.restore()
 
     accuracy = 100 * correct / total
     print(f'Accuracy of the network on the 10000 test images: {accuracy:.2f} %')

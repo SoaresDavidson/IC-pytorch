@@ -24,6 +24,7 @@ class BinOp():
         for m in model.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
                 index = index + 1
+                # print(m)
                 if index in self.bin_range: #checagem a mais?
                     #tmp = m.weight.data.clone()
                     with torch.no_grad():
@@ -43,67 +44,73 @@ class BinOp():
     def meancenterConvParams(self): #calcula a média absoluta dos pesos e subtrai dele mesmo (centraliza os pesos)
         for param in self.target_modules:
             # s = self.target_modules[index].data.size() não é utilizado
-            negMean = param.data.mean(1, keepdim=True).\
-                    mul(-1).expand_as(param.data)
-            param.data = param.data.add(negMean)
+            with torch.no_grad():
+                negMean = param.mean(1, keepdim=True).\
+                        mul(-1).expand_as(param)
+                param.add_(negMean)
 
     def clampConvParams(self): #entender depois mas basicamente limita os  pesos para 1 e -1
         for param in self.target_modules:
-            param.data = \
-                    param.data.clamp(-1.0, 1.0)
+            with torch.no_grad():
+                param.copy_(param.clamp(-1.0, 1.0))
 
     def save_params(self): #copia os pesos em target_module para saved_params
         for index, target in enumerate(self.target_modules):
-            self.saved_params[index].copy_(target.data) #copia inplace target_module para saved_params
+            with torch.no_grad():
+                self.saved_params[index].copy_(target) #copia inplace target_module para saved_params
 
     def binarizeConvParams(self): # calcula o alpha 
-        for param in self.target_modules:
-            n = param.data[0].nelement() #num de saídas
-            s = param.data.size() #dimensões
-            # print(f"n:{n}")
-            # print(f"s:{s}")
-            if len(s) == 4: #conlucional = [saída, entrada, altura_kernel, largura_kernel]
-                m = param.data.abs()\
-                        .sum(3, keepdim=True)\
-                        .sum(2, keepdim=True)\
-                        .sum(1, keepdim=True)\
-                        .div(n) #soma dos valores absolutos
-            elif len(s) == 2: #linear = [entrada, saída]
-                m = param.data.abs().sum(1, keepdim=True).div(n)
-
-            param.data = param.data.sign().mul(m.expand(s)) #type: ignore
+        with torch.no_grad():
+            for param in self.target_modules:
+                saidas = param[0].nelement() #num de saídas
+                dim = param.size() #dimensões
+                # print(f"saídas:{saidas}")
+                # print(f"dimensão:{dim}")
+                if len(dim) == 4: #conlucional = [saída, entrada, altura_kernel, largura_kernel]
+                    alpha = param.abs()\
+                            .sum(3, keepdim=True)\
+                            .sum(2, keepdim=True)\
+                            .sum(1, keepdim=True)\
+                            .div(saidas) #soma dos valores absolutos
+                elif len(dim) == 2: #linear = [entrada, saída]
+                    alpha = param.abs().sum(1, keepdim=True).div(saidas)
+                # param = param.sign().mul(alpha.expand(dim)) não é inplace, vai so mudar a copia
+                param.copy_(param.sign().mul(alpha.expand(dim))) #type: ignore
 
     def restore(self):
         for index in range(self.num_of_params):
-            self.target_modules[index].data.copy_(self.saved_params[index]) #copia de saved_params para target_modules
+            with torch.no_grad():
+                self.target_modules[index].copy_(self.saved_params[index]) #copia de saved_params para target_modules
 
     def updateBinaryGradWeight(self):
-        for param in self.target_modules:
-            weight = param.data
-            n = weight[0].nelement() # num de saídas 
-            s = weight.size() #dimensões
-            if len(s) == 4:
-                m = weight.abs()\
-                        .sum(3, keepdim=True)\
-                        .sum(2, keepdim=True)\
-                        .sum(1, keepdim=True)\
-                        .div(n).expand(s).clone() #norm deprecated
-            elif len(s) == 2:
-                m = weight.norm(1, 1, keepdim=True).div(n).expand(s).clone()
+        with torch.no_grad():
+            for param in self.target_modules:
+                saidas = param[0].nelement() #num de saídas
+                dim = param.size() #dimensões
+                # print(f"saídas:{saidas}")
+                # print(f"dimensão:{dim}")
+                if len(dim) == 4:
+                    alpha = param.abs()\
+                            .sum(3, keepdim=True)\
+                            .sum(2, keepdim=True)\
+                            .sum(1, keepdim=True)\
+                            .div(saidas).expand(dim).clone() #norm deprecated
+                elif len(dim) == 2:
+                    alpha = param.abs().sum(1, keepdim=True).div(saidas).expand(dim).clone()
 
-            m[weight.lt(-1.0)] = 0 #type: ignore
-            m[weight.gt(1.0)] = 0 #type: ignore
+                alpha[param.lt(-1.0)] = 0 #type: ignore
+                alpha[param.gt(1.0)] = 0 #type: ignore
 
-            m = m.mul(param.grad.data) #type: ignore
-            m_add = weight.sign().mul(param.grad.data)
+                alpha.mul_(param.grad) #type: ignore #alpha * gradiente dos pesos
+                alpha_add = param.sign().mul(param.grad) #mesma coisa so que somente o sinal
 
-            if len(s) == 4:
-                m_add = m_add.sum(3, keepdim=True)\
-                        .sum(2, keepdim=True)\
-                        .sum(1, keepdim=True)\
-                        .div(n).expand(s)
-            elif len(s) == 2:
-                m_add = m_add.sum(1, keepdim=True).div(n).expand(s)
-                
-            m_add = m_add.mul(weight.sign())
-            param.grad.data = m.add(m_add).mul(1.0-1.0/s[1]).mul(n)
+                if len(dim) == 4:
+                    alpha_add = alpha_add.sum(3, keepdim=True)\
+                            .sum(2, keepdim=True)\
+                            .sum(1, keepdim=True)\
+                            .div(saidas).expand(dim)
+                elif len(dim) == 2:
+                    alpha_add = alpha_add.sum(1, keepdim=True).div(saidas).expand(dim)
+                    
+                alpha_add = alpha_add.mul(param.sign())
+                param.grad = alpha.add(alpha_add).mul(1.0-1.0/dim[1]).mul(saidas) #type: ignore
