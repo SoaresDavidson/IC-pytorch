@@ -3,7 +3,6 @@ import torch.nn as nn
 import yaml
 from datasets import load_dataset
 import models
-from util import BinOp
 
 with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)

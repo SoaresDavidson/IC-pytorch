@@ -41,7 +41,7 @@ class LeNet5(nn.Module):
         )
 
         self.convLayer1 = nn.Sequential(
-            C3(),
+            nn.Conv2d(6,16,5),
             nn.BatchNorm2d(16),
             nn.Tanh(),
             nn.AvgPool2d(kernel_size = 2, stride = 2)
