@@ -38,31 +38,21 @@ class BinConvParam(torch.autograd.Function):
                 .mean((1,2,3), keepdim=True)\
                 .expand_as(weights)
 
-        return clamped_weight.sign().mul(alpha)
+        return Binarize()(clamped_weight).mul(alpha)
 
     @staticmethod
     def backward(ctx, grad_output): #type: ignore
         weights, = ctx.saved_tensors
-        saidas = weights[0].nelement() #num de saídas
         dim = weights.size() #dimensões
-
-        alpha = weights.abs()\
-                .mean((1,2,3), keepdim=True)\
-                .expand_as(weights).clone()
-        alpha[weights.lt(-1.0)] = 0
-        alpha[weights.gt(1.0)] = 0
-
-        alpha.mul_(grad_output)
         
         mean_grad = grad_output.mean((1,2,3), keepdim=True).expand(dim)
 
-        return alpha.add(mean_grad) #type: ignore
+        return grad_output.add(mean_grad) #type: ignore
 
 class BinLinearParam(torch.autograd.Function):
     @staticmethod
     def forward(ctx, weights) -> torch.Tensor:
         ctx.save_for_backward(weights)
-        saidas = weights[0].nelement()
         mean_weight = weights - weights.mean(1, keepdim=True).expand_as(weights)
         
         clamped_weight = mean_weight.clamp(-1.0, 1.0)
@@ -71,31 +61,15 @@ class BinLinearParam(torch.autograd.Function):
                 .mean(1, keepdim=True)\
                 .expand_as(weights)
         
-        return clamped_weight.sign().mul(alpha)
+        return Binarize()(clamped_weight).mul(alpha).mul(alpha)
 
     @staticmethod
     def backward(ctx, grad_output): #type: ignore
         weights, = ctx.saved_tensors
-        saidas = weights[0].nelement() #num de saídas
         dim = weights.size() #dimensões
 
-        alpha = weights.abs()\
-                .mean(1, keepdim=True)\
-                .expand(dim).clone()
-        #derivada parcial de sign em função do i-esimo peso
-        alpha[weights.lt(-1.0)] = 0
-        alpha[weights.gt(1.0)] = 0
-
-        # print(alpha)
-        # print(weights)
-        # print(grad_output)
-        grad_input = grad_output.clone()
-        #multiplica a derivada do custo em função do peso binarizada
-        #pela derivada de sign em função do peso
-        alpha.mul_(grad_input)
-
         mean_grad = grad_output.mean(1, keepdim=True).expand(dim)
-        return alpha.add(mean_grad)  #type: ignore
+        return grad_output.add(mean_grad)  #type: ignore
 
 
 class Conv2dBinary(nn.Conv2d):
@@ -108,8 +82,8 @@ class Conv2dBinary(nn.Conv2d):
         
         weight_binarized = BinConvParam.apply(self.weight)
         output = F.conv2d(
-            input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups
-        )
+            input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups #type: ignore
+        ) 
         return output
     
 class LinearBinary(nn.Linear):
