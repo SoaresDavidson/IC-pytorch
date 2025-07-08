@@ -35,7 +35,6 @@ class LeNet5Binary(nn.Module):
             nn.Linear(84, num_classes)
         )
 
-
     def forward(self, x):
         out = self.Convlayer1(x)
         out = self.Convlayer2(out)

@@ -42,7 +42,9 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
 
         outputs = model(images)
+        
         loss = cost(outputs, labels)
+        
         loss.backward()
 
         optimizer.step()

@@ -1,34 +1,6 @@
 import torch
 import torch.nn as nn
-
-
-class C3(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        self.feature_maps = [
-            [0, 1, 2], [1, 2, 3], [2, 3, 4], [3, 4, 5], [0, 4, 5], [0, 1, 5],
-            [0, 1, 2, 3], [1, 2, 3, 4], [2, 3, 4, 5], [0, 3, 4, 5], [0, 1, 4, 5], [0, 1, 2, 5],
-            [0, 1, 3, 4], [1, 2, 4, 5], [0, 2, 3, 5],
-            [0, 1, 2, 3, 4, 5]
-        ]
-
-        self.conv_layer = nn.ModuleList()
-
-        for input in self.feature_maps:
-            conv = nn.Conv2d(in_channels=len(input),out_channels=1,kernel_size=5)
-            self.conv_layer.append(conv)
-        
-    def forward(self, input):
-        c3 = []
-        for i, maps in enumerate(self.feature_maps):
-
-            S2 = input[:, maps, :,:]
-            resultado = self.conv_layer[i](S2)
-            c3.append(resultado)
-
-        return torch.cat(c3, dim=1)
-
+from .util_models import C3
 class LeNet5(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
@@ -41,7 +13,7 @@ class LeNet5(nn.Module):
         )
 
         self.convLayer1 = nn.Sequential(
-            nn.Conv2d(6,16,5),
+            C3(),
             nn.BatchNorm2d(16),
             nn.Tanh(),
             nn.AvgPool2d(kernel_size = 2, stride = 2)

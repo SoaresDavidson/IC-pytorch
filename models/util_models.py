@@ -2,7 +2,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from sklearn.cluster import KMeans
+import numpy as np
 class BinFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
@@ -28,18 +29,15 @@ class BinConvParam(torch.autograd.Function):
     @staticmethod
     def forward(ctx, weights):
         ctx.save_for_backward(weights)
-        saidas = weights[0].nelement()
         mean_weight = weights - weights.mean(1, keepdim=True).expand_as(weights)
 
         
         clamped_weight = mean_weight.clamp(-1.0, 1.0)
 
         alpha = clamped_weight.abs()\
-                .sum(3, keepdim=True)\
-                .sum(2, keepdim=True)\
-                .sum(1, keepdim=True)\
-                .div(saidas).expand_as(weights)
-        
+                .mean((1,2,3), keepdim=True)\
+                .expand_as(weights)
+
         return clamped_weight.sign().mul(alpha)
 
     @staticmethod
@@ -49,36 +47,29 @@ class BinConvParam(torch.autograd.Function):
         dim = weights.size() #dimensões
 
         alpha = weights.abs()\
-                .sum(3, keepdim=True)\
-                .sum(2, keepdim=True)\
-                .sum(1, keepdim=True)\
-                .div(saidas).expand_as(weights).clone()
-    
+                .mean((1,2,3), keepdim=True)\
+                .expand_as(weights).clone()
         alpha[weights.lt(-1.0)] = 0
         alpha[weights.gt(1.0)] = 0
 
         alpha.mul_(grad_output)
-        alpha_add = weights.sign().mul(grad_output)
-    
-        alpha_add = alpha_add.sum(3, keepdim=True)\
-                                .sum(2, keepdim=True)\
-                                .sum(1, keepdim=True)\
-                                .div(saidas).expand_as(weights)
         
-        alpha_add = alpha_add.mul(weights.sign())
-        return alpha.add(alpha_add).mul(1.0-1.0/dim[1]).mul(saidas) #type: ignore
+        mean_grad = grad_output.mean((1,2,3), keepdim=True).expand(dim)
+
+        return alpha.add(mean_grad) #type: ignore
 
 class BinLinearParam(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, weights):
+    def forward(ctx, weights) -> torch.Tensor:
         ctx.save_for_backward(weights)
+        saidas = weights[0].nelement()
         mean_weight = weights - weights.mean(1, keepdim=True).expand_as(weights)
         
         clamped_weight = mean_weight.clamp(-1.0, 1.0)
 
         alpha = clamped_weight.abs()\
-                .sum(1, keepdim=True)\
-                .div(2).expand_as(weights)
+                .mean(1, keepdim=True)\
+                .expand_as(weights)
         
         return clamped_weight.sign().mul(alpha)
 
@@ -89,27 +80,26 @@ class BinLinearParam(torch.autograd.Function):
         dim = weights.size() #dimensões
 
         alpha = weights.abs()\
-                .sum(1, keepdim=True)\
-                .div(saidas).expand(dim).clone()
-    
+                .mean(1, keepdim=True)\
+                .expand(dim).clone()
+        #derivada parcial de sign em função do i-esimo peso
         alpha[weights.lt(-1.0)] = 0
         alpha[weights.gt(1.0)] = 0
+
         # print(alpha)
         # print(weights)
         # print(grad_output)
         grad_input = grad_output.clone()
+        #multiplica a derivada do custo em função do peso binarizada
+        #pela derivada de sign em função do peso
         alpha.mul_(grad_input)
 
-        alpha_add = weights.sign().mul(grad_input)
-        alpha_add = alpha_add.sum(1, keepdim=True)\
-                            .div(saidas).expand(dim)
-        
-        alpha_add = alpha_add.mul(weights.sign())
-        return alpha.add(alpha_add).mul(1.0-1.0/dim[1]).mul(saidas) #type: ignore
+        mean_grad = grad_output.mean(1, keepdim=True).expand(dim)
+        return alpha.add(mean_grad)  #type: ignore
 
 
 class Conv2dBinary(nn.Conv2d):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=None):
         super().__init__(
             in_channels, out_channels, kernel_size, stride, padding, bias=bias
         )
@@ -158,4 +148,3 @@ class C3(nn.Module):
             c3.append(resultado)
 
         return torch.cat(c3, dim=1)
-
