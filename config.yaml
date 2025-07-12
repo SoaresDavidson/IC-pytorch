@@ -1,5 +1,5 @@
 model:
-  name: 'lenet5B'
+  name: 'lenet5XNOR'
 hyperparameters:
   batch_size: 64
   num_classes: 10

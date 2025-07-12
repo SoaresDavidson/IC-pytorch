@@ -3,7 +3,7 @@ import torch.nn as nn
 import yaml
 from datasets import load_dataset
 import models
-
+import time
 with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
     
@@ -53,19 +53,22 @@ for epoch in range(num_epochs):
 
 
 model.eval() 
-
+times = []
 with torch.no_grad():
     correct = 0
     total = 0
 
     for images, labels in test_loader:
         images,labels = images.to(device), labels.to(device)
-        
+        start_time = time.time()
         outputs = model(images)
         _, predicted = torch.max(outputs.data, 1)
-        
+        end_time = time.time()
+        times.append(end_time - start_time)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
 
     accuracy = 100 * correct / total
     print(f'Accuracy of the network on the 10000 test images: {accuracy:.2f} %')
+    avg_inference_time = sum(times) / len(times) if times else 0
+    print(f"Average inference time per batch: {avg_inference_time:.6f} seconds")

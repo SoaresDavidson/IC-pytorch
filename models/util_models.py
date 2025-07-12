@@ -1,15 +1,13 @@
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.cluster import KMeans
-import numpy as np
+
 class BinFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x):
-        ctx.save_for_backward(x)
-        return torch.sign(x)
-    
+    def forward(ctx, input):
+        ctx.save_for_backward(input)
+        return torch.sign(input)
+
     @staticmethod
     def backward(ctx, grad_output): # type: ignore
         input, = ctx.saved_tensors
@@ -20,10 +18,60 @@ class BinFunction(torch.autograd.Function):
 
 class Binarize(nn.Module):
     def __init__(self):
-        super(Binarize, self).__init__()
+        super().__init__()
+    
+    def forward(self, input):
+        return BinFunction.apply(input)
 
-    def forward(self, x):
-        return BinFunction.apply(x)
+
+class BinConvInput(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        temp = input.clone()
+        _, features,width,height = input.size()
+
+        alpha = temp.abs().mean(1, keepdim=True).expand_as(input).clone() 
+
+        k = torch.ones(width , height, device=input.device).div(width/height)
+        k = k.expand(features,1,width,height)
+
+        beta = F.conv2d(alpha, k, groups=features)
+        return beta * Binarize()(input)
+
+    @staticmethod
+    def backward(ctx, grad_output): #type: ignore
+        grad_bin = grad_output.sign()
+        scaling = grad_output.amax((1,2,3), keepdim=True)
+
+        return grad_bin * scaling
+
+class BinarizeAct(nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, input):
+        return BinConvInput.apply(input)
+
+class BinWeights(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x):
+        ctx.save_for_backward(x)
+        return torch.sign(x)
+    
+    @staticmethod
+    def backward(ctx, grad_output): # type: ignore #1 back 2 back
+        input, = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        grad_input[input.ge(1)] = 0
+        grad_input[input.le(-1)] = 0
+        return grad_input
+    
+class BinarizeWeights(nn.Module):
+    def __init__(self):
+        super(BinarizeWeights, self).__init__()
+
+    def forward(self, input):
+        return BinWeights.apply(input)
     
 class BinConvParam(torch.autograd.Function):
     @staticmethod
@@ -31,23 +79,43 @@ class BinConvParam(torch.autograd.Function):
         ctx.save_for_backward(weights)
         mean_weight = weights - weights.mean(1, keepdim=True).expand_as(weights)
 
-        
         clamped_weight = mean_weight.clamp(-1.0, 1.0)
 
         alpha = clamped_weight.abs()\
                 .mean((1,2,3), keepdim=True)\
                 .expand_as(weights)
 
-        return Binarize()(clamped_weight).mul(alpha)
+        return BinarizeWeights()((clamped_weight).mul(alpha))
 
     @staticmethod
-    def backward(ctx, grad_output): #type: ignore
+    def backward(ctx, grad_output): #type: ignore 3 back 4 back
         weights, = ctx.saved_tensors
-        dim = weights.size() #dimensões
+        num_weights = weights.numel()
+        # alpha = weights.abs()\
+        #         .mean((1,2,3), keepdim=True)\
+        #         .expand_as(weights).clone()
         
-        mean_grad = grad_output.mean((1,2,3), keepdim=True).expand(dim)
+        # alpha[weights.lt(-1.0)] = 0
+        # alpha[weights.gt(1.0)] = 0
 
-        return grad_output.add(mean_grad) #type: ignore
+        # alpha_grad = alpha.mul(grad_output)
+
+        mean_grad = grad_output.div(num_weights)
+
+        return mean_grad.add(grad_output) #+ alpha_grad #type: ignore
+class Conv2dBinary(nn.Conv2d):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=None):
+        super().__init__(
+            in_channels, out_channels, kernel_size, stride, padding, bias=bias
+        )
+    
+    def forward(self, input):
+        weight_binarized = BinConvParam.apply(self.weight)
+
+        output = F.conv2d(
+            input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups #type: ignore
+        ) 
+        return output
 
 class BinLinearParam(torch.autograd.Function):
     @staticmethod
@@ -61,31 +129,23 @@ class BinLinearParam(torch.autograd.Function):
                 .mean(1, keepdim=True)\
                 .expand_as(weights)
         
-        return Binarize()(clamped_weight).mul(alpha).mul(alpha)
-
+        return BinarizeWeights()((clamped_weight).mul(alpha))
+    
     @staticmethod
-    def backward(ctx, grad_output): #type: ignore
+    def backward(ctx, grad_output): #type: ignore 5 back 6 back
         weights, = ctx.saved_tensors
-        dim = weights.size() #dimensões
+        num_weights = weights.numel()
 
-        mean_grad = grad_output.mean(1, keepdim=True).expand(dim)
-        return grad_output.add(mean_grad)  #type: ignore
+        # alpha = weights.abs().mean(1,keepdim=True).expand_as(weights).clone()
 
+        # alpha[weights.gt(1.0)] = 0
+        # alpha[weights.lt(-1.0)] = 0
 
-class Conv2dBinary(nn.Conv2d):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=None):
-        super().__init__(
-            in_channels, out_channels, kernel_size, stride, padding, bias=bias
-        )
-    
-    def forward(self, input):
-        
-        weight_binarized = BinConvParam.apply(self.weight)
-        output = F.conv2d(
-            input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups #type: ignore
-        ) 
-        return output
-    
+        # alpha_grad = alpha.mul(grad_output)
+
+        mean_grad = grad_output.div(num_weights)
+
+        return mean_grad.add(grad_output) #+ alpha_grad #type: ignore
 class LinearBinary(nn.Linear):
     def __init__(self, in_features, out_features, bias=False):
         super().__init__(in_features, out_features, bias=bias)
@@ -93,7 +153,7 @@ class LinearBinary(nn.Linear):
     def forward(self, input):
         weight_binarized = BinLinearParam.apply(self.weight)
 
-        output = F.linear(input, weight_binarized, self.bias)
+        output = F.linear(input, weight_binarized, self.bias) #type: ignore
         return output
     
 class C3(nn.Module):

@@ -8,69 +8,61 @@ import torch.nn as nn
 # print(y)
 # print(y.size())
 
-##teste de elemete-wise operations
-# x = torch.arange(2*2*2*2).resize_(2,2,2,2)
-# print((x-2)**2)
+#teste de elemete-wise operations
+# x = torch.arange(2*2).resize_(2,2)
+# y = torch.arange(2*2).resize_(2,2)
+# print(x.mul_(y))
+# print(x)
+# print(y)
 
 # x = torch.randn(10,84)
 # print(x)
 
-## KMean Cluster
-import torch
+x = torch.arange(6*14*14, dtype=float).resize_(6,14,14)
+print(x)
+print(x.sum(dim=(0)))
+print(x.mean(dim = 0))
 
-def kmeans(X, k, num_iters=100, tol=1e-4):
-    # Inicializa k centróides aleatórios a partir de pontos do dataset
-    indices = torch.randperm(X.size(0))[:k]
-    centroids = X[indices]
-    # print(centroids)
 
-    for i in range(num_iters):
-        # Calcula distâncias euclidianas entre cada ponto e cada centróide (forma vetorizada)
-        distances = torch.cdist(X, centroids)  # shape: (N, K)
-        # print(distances)
-        # Atribui cada ponto ao cluster mais próximo
-        labels = distances.argmin(dim=1)
-        # print(labels)
-        # Recalcula centróides com a média dos pontos em cada cluster
-        new_centroids = torch.stack([
-            X[labels == j].mean(dim=0) if (labels == j).any() else centroids[j]
-            for j in range(k)
-        ])
-        # print(new_centroids)
+# import torch
+# import torch.nn.functional as F
 
-        # Verifica convergência
-        if torch.norm(centroids - new_centroids) < tol:
-            break
+# # Input: batch_size=64, channels=20, H=W=14
+# input_tensor = torch.randn(64, 20, 14, 14)
 
-        centroids = new_centroids
+# # 2D kernel: shape [14, 14]
+# kernel_2d = torch.randn(14, 14)
 
-    return labels, centroids
+# # Expand to apply same kernel across all channels
+# kernel_stack = kernel_2d.expand(20, 1, 14, 14)  # [out_channels, in_channels/groups, kH, kW]
 
-# Exemplo: dados com 84 amostras e 10 features
-x = torch.randn(128,84).cuda()  # ou .to(device) se quiser generalizar
-labels, centers = kmeans(x, k=3)
+# # Apply depthwise convolution (1 kernel per channel)
+# output = F.conv2d(input_tensor, kernel_stack, groups=20)
 
-# print("Labels:", labels)
-# print("Centers shape:", centers)
+# print(output.shape)  # Should be [64, 20, 1, 1] if no padding/stride
 
-class RBF(nn.Linear):
-    def __init__(self, in_features, out_features, bias=False):
-        super().__init__(in_features, out_features, bias=bias)
-        _,self.centers = kmeans(input, k=10)
-        
-    def forward(self, input):
+# class BinWeights(torch.autograd.Function):
+#     @staticmethod
+#     def forward(ctx, x):
+#         ctx.save_for_backward(x)
+#         return torch.sign(x)
+    
+#     @staticmethod
+#     def backward(ctx, grad_output): # type: ignore #1 back 2 back
+#         print(grad_output)
+#         input, = ctx.saved_tensors
+#         grad_input = grad_output.clone()
+#         grad_input[input.ge(1)] = 0
+#         grad_input[input.le(-1)] = 0
+#         return grad_input
+    
+# x = torch.randn(2,2,2,2, requires_grad=True)
+# print(x)
 
-        diff = input.unsqueeze(1) - centers.unsqueeze(0) #[128,1,84] - [1, 10, 84]
-        # diff shape: [128, 10, 84]
-        result = 0
-        norm = torch.linalg.norm(diff, ord=2, dim=2)  # shape: [128, 10]
-        print(norm.shape)
-        print(norm[:,1])
-        print(self.weight.shape)
-        result += self.weight * torch.exp(norm)[:,1]
-        print(result.shape)
-        return result
+# y = BinWeights.apply(x)
+# print(y)
+# loss = y.sum()  # or any scalar function of y
+# loss.backward()
 
-net = RBF(84, 1).cuda()
-print(net(x))
-
+# print(x.grad)
+# # print(y)
