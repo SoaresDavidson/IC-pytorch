@@ -6,14 +6,14 @@ class LeNet5(nn.Module):
         super().__init__()
 
         self.convLayer = nn.Sequential(
-            nn.Conv2d(1, 6, kernel_size=5, stride=1, padding=0),#mudar o canal de entrada pare 3 caso usar a cifar10
+            nn.Conv2d(3, 6, kernel_size=5, stride=1, padding=0),#mudar o canal de entrada pare 3 caso usar a cifar10
             nn.BatchNorm2d(6),
             nn.Tanh(),
             nn.AvgPool2d(kernel_size = 2, stride = 2)
         )
 
         self.convLayer1 = nn.Sequential(
-            C3(),
+            nn.Conv2d(in_channels=6,out_channels=16, kernel_size=5),
             nn.BatchNorm2d(16),
             nn.Tanh(),
             nn.AvgPool2d(kernel_size = 2, stride = 2)

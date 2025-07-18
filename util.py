@@ -1,6 +1,9 @@
 import torch.nn as nn
 import torch
-import numpy
+import torchvision
+import torchvision.transforms as transforms
+import numpy as np
+import matplotlib.pyplot as plt
 
 class BinOp():
     def __init__(self, model): #pega as camadas que vão ter os pesos binarizados
@@ -24,7 +27,7 @@ class BinOp():
         for m in model.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
                 index = index + 1
-                # print(m)
+                print(m)
                 if index in self.bin_range: #checagem a mais?
                     #tmp = m.weight.data.clone()
                     with torch.no_grad():
@@ -67,15 +70,11 @@ class BinOp():
                 # print(f"saídas:{saidas}")
                 # print(f"dimensão:{dim}")
                 if len(dim) == 4: #conlucional = [saída, entrada, altura_kernel, largura_kernel]
-                    alpha = param.abs()\
-                            .sum(3, keepdim=True)\
-                            .sum(2, keepdim=True)\
-                            .sum(1, keepdim=True)\
-                            .div(saidas) #soma dos valores absolutos
+                    alpha = param.abs().mean(dim=(1,2,3), keepdim=True).expand(dim) #soma dos valores absolutos
                 elif len(dim) == 2: #linear = [entrada, saída]
-                    alpha = param.abs().sum(1, keepdim=True).div(saidas)
+                    alpha = param.abs().mean(dim=1, keepdim=True).expand(dim)
                 # param = param.sign().mul(alpha.expand(dim)) não é inplace, vai so mudar a copia
-                param.copy_(param.sign().mul(alpha.expand(dim))) #type: ignore
+                param.copy_(param.sign().mul(alpha)) #type: ignore
 
     def restore(self):
         for index in range(self.num_of_params):
@@ -91,26 +90,30 @@ class BinOp():
                 # print(f"dimensão:{dim}")
                 if len(dim) == 4:
                     alpha = param.abs()\
-                            .sum(3, keepdim=True)\
-                            .sum(2, keepdim=True)\
-                            .sum(1, keepdim=True)\
-                            .div(saidas).expand(dim).clone() #norm deprecated
+                            .mean(dim=(1,2,3), keepdim=True)\
+                            .expand(dim).clone()
                 elif len(dim) == 2:
-                    alpha = param.abs().sum(1, keepdim=True).div(saidas).expand(dim).clone()
+                    alpha = param.abs().mean(1, keepdim=True).expand(dim).clone()
 
                 alpha[param.lt(-1.0)] = 0 #type: ignore
                 alpha[param.gt(1.0)] = 0 #type: ignore
 
                 alpha.mul_(param.grad) #type: ignore #alpha * gradiente dos pesos
-                alpha_add = param.sign().mul(param.grad) #mesma coisa so que somente o sinal
+                
+                alpha_add = param.grad.div(saidas)
 
-                if len(dim) == 4:
-                    alpha_add = alpha_add.sum(3, keepdim=True)\
-                            .sum(2, keepdim=True)\
-                            .sum(1, keepdim=True)\
-                            .div(saidas).expand(dim)
-                elif len(dim) == 2:
-                    alpha_add = alpha_add.sum(1, keepdim=True).div(saidas).expand(dim)
-                    
-                alpha_add = alpha_add.mul(param.sign())
-                param.grad = alpha.add(alpha_add).mul(1.0-1.0/dim[1]).mul(saidas) #type: ignore
+                param.grad = alpha.add(alpha_add) #type: ignore
+
+
+
+def plot_batch(dataloader, classes):
+    data_iter = iter(dataloader)
+    images, labels = next(data_iter)
+    title=' '.join(classes[label] for label in labels)
+    npimg = torchvision.utils.make_grid(images).numpy()
+    plt.figure(figsize=(10,4))
+    plt.imshow(np.transpose(npimg, (1,2,0)))
+    plt.title(title)
+    plt.axis('off')
+    plt.show()
+

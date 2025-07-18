@@ -1,10 +1,11 @@
 model:
-  name: 'lenet5XNOR'
+  name: 'Lenet5'
 hyperparameters:
   batch_size: 64
-  num_classes: 10
-  lr: 0.01
+  num_classes: 100
+  lr: 0.001
   num_epochs: 10
+  binarize: False
 dataset:
-  name: 'mnist'
-  path: './data/mnist'
+  name: 'cifar100'
+  path: './data'
