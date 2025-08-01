@@ -6,7 +6,7 @@ def get_loaders(batch_size):
     train_dataset = torchvision.datasets.FashionMNIST(root = './data',
                                                train = True,
                                                transform = transforms.Compose([
-                                                #       transforms.Resize((32,32)),
+                                                      transforms.Resize((32,32)),
                                                       transforms.ToTensor(),
                                                       transforms.Normalize(mean = (0.1307,), std = (0.3081,))
                                                       ]),
@@ -16,7 +16,7 @@ def get_loaders(batch_size):
     test_dataset = torchvision.datasets.FashionMNIST(root = './data',
                                                 train = False,
                                                 transform = transforms.Compose([
-                                                        # transforms.Resize((32,32)),
+                                                        transforms.Resize((32,32)),
                                                         transforms.ToTensor(),
                                                         transforms.Normalize(mean = (0.1325,), std = (0.3105,))
                                                         ]),

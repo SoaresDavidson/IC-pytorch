@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 # x = torch.randn(4,3)
@@ -53,9 +54,9 @@ import matplotlib.pyplot as plt
 # y.backward()
 # print(x.grad)
 
-x = torch.arange(24,dtype=float).reshape(3,2,2,2)
-print(x)
-print(x.mean(dim=1))
+# x = torch.arange(24,dtype=float).reshape(3,2,2,2)
+# print(x)
+# print(x.mean(dim=1))
 
 
 # inputDim = 1        # takes variable 'x' 
@@ -122,8 +123,7 @@ print(x.mean(dim=1))
 # plt.show()
 
 # arquivo inutil apenas para testar ideias idiotas
-import torch
-import torch.nn as nn
+
 ##como funciona o keepdim=True
 # x = torch.arange(2*2*2*2).resize_(2,2,2,2)
 # print(x)
@@ -190,9 +190,62 @@ import torch.nn as nn
 # print(x.grad)
 # # print(y)
 
-x = torch.arange(16).resize_(2,2,4)
-print(x, x.size())
-y = torch.unsqueeze(x, 0)
-print(y, y.size())
-z = torch.unsqueeze(x, 1)
-print(z, z.size())
+# x = torch.arange(16).resize_(2,2,4)
+# print(x, x.size())
+# y = torch.unsqueeze(x, 0)
+# print(y, y.size())
+# z = torch.unsqueeze(x, 1)
+# print(z, z.size())
+
+# net = nn.Sequential(nn.LazyLinear(8),
+#                     nn.ReLU(),
+#                     nn.LazyLinear(1))
+
+# X = torch.rand(size=(2, 4))
+# print(net(X).shape)
+# print(net[0].state_dict())
+
+# net = nn.Sequential(nn.Linear(2,1),
+#                     )
+# print(net[0].weight)
+
+# def xnor_popcount(a: int, b: int) -> int:
+#     return (~(a ^ b) & 7).bit_count() 
+# print(xnor_popcount(2,3))
+
+# import torch
+
+
+def my_hook(grad):
+    print("In hook, grad argument:", grad)
+
+
+# v = torch.tensor([0., 0., 0.], requires_grad=True)
+# lr = 0.01
+# # simulate a simple SGD update
+# h = v.register_post_accumulate_grad_hook(my_hook)
+# v.backward(torch.tensor([1., 2., 3.]))
+# print(v)
+# print(v.grad)
+
+# h.remove()  # removes the hook
+
+# x = torch.rand(2)
+# print(x)
+# net = nn.Sequential(nn.Linear(2,1),
+#                     nn.Linear(1,1)
+#                     )
+# print(net[0].weight)
+# print(net[1].weight)
+
+# net[1].weight.register_post_accumulate_grad_hook(my_hook)
+
+# y = net(x)
+# print(y)
+# y.backward(torch.Tensor([1]))
+
+x = torch.arange(16, dtype=float).resize_(2,2, 2,2)
+print(x)
+print(x.mean(1), x.mean(1).shape)
+print(x.mean(1).expand_as(x))
+print(x-(x.mean(1, keepdim=True).expand_as(x)))

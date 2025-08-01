@@ -1,4 +1,4 @@
-from . import Lenet5, Lenet5BW, Lenet5XNOR, AlexNet, Lenet5Q
+from . import AlexNetQ, Lenet5, Lenet5BW, Lenet5XNOR, Lenet5Q, AlexNet
 
 
 
@@ -7,7 +7,8 @@ MODEL_GETTER = {
     'lenet5BW': Lenet5BW.LeNet5Binary,
     'lenet5XNOR': Lenet5XNOR.LeNet5XNOR,
     'lenet5Q': Lenet5Q.LenetQ,
-    'alex': AlexNet.AlexNet,
+    'alexQ': AlexNetQ.AlexNet,
+    'alex': AlexNet.AlexNet
 }
 
 def get_model(name):

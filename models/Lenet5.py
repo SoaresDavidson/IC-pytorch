@@ -9,6 +9,7 @@ class LeNet5(nn.Module):
             nn.BatchNorm2d(6),
             nn.ReLU(), 
             nn.MaxPool2d(kernel_size = 2, stride = 2),
+            
             nn.Conv2d(in_channels=6,out_channels=16, kernel_size=5),
             nn.BatchNorm2d(16),
             nn.ReLU(),
@@ -22,6 +23,7 @@ class LeNet5(nn.Module):
         self.linearLayer = nn.Sequential(
             nn.Linear(120, 84),
             nn.ReLU(),
+
             nn.Linear(84, num_classes)
         )
 

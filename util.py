@@ -150,7 +150,8 @@ def plot_classes_preds(output, images, labels):
     for idx in range(n_images):
         ax = fig.add_subplot(rows, cols, idx + 1, xticks=[], yticks=[])
         image = images[idx].detach().cpu().squeeze().numpy()
-        plt.imshow(image, cmap='gray')
+        image = image.transpose(1,2,0)
+        plt.imshow(image)
 
         pred = preds[idx]
         prob = probs[idx]

@@ -9,6 +9,7 @@ from util import BinOp, plot_classes_preds
 from torchvision.utils import make_grid 
 import matplotlib.pyplot as plt
 import numpy as np
+from brevitas.export import export_onnx_qcdq, export_brevitas_onnx, export_qonnx, export_torch_qcdq
 
 
 with open('config.yaml', 'r') as f:
@@ -20,10 +21,9 @@ batch_size = config["hyperparameters"]["batch_size"]
 num_classes = config["hyperparameters"]["num_classes"]
 learning_rate = config["hyperparameters"]["lr"]
 num_epochs = config["hyperparameters"]["num_epochs"]
-bin = config["hyperparameters"]["binarize"]
+
 dataset_name = config['dataset']['name']
 model_name = config['model']['name']
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"dispositivo: {device}")
 
@@ -33,27 +33,27 @@ print(f'Carregando {dataset_name}')
 train_loader, test_loader = load_dataset(name=dataset_name ,batch_size=batch_size)
 
     
-model = models.get_model(model_name)(num_classes).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+model:nn.Module = models.get_model(model_name)(num_classes).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, fused=True)
+# scheduler = torch.optim.lr_scheduler.LRScheduler(optimizer, last_epoch=num_epochs)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs/4, gamma=0.1)
 cost = nn.CrossEntropyLoss()
-writer = SummaryWriter(f'runs/{dataset_name}')
+writer = SummaryWriter(f'logs/{dataset_name}')
 binop = BinOp(model=model)
 
 
+
 total_samples = len(train_loader.dataset) #type: ignore
-# print(model.modules)
+print(model.modules)
 print(total_samples)
 print(len(train_loader))
 
-def train(epoch, bin=False):
+def train(epoch):
     model.train()
     running_loss = 0
     for i, (images, labels) in enumerate(train_loader):  
         images = images.to(device)
         labels = labels.to(device)
-
-        if bin:
-            binop.binarization()
 
         optimizer.zero_grad()
 
@@ -66,33 +66,30 @@ def train(epoch, bin=False):
         loss.backward()
 
         running_loss += loss.item()
-        if bin:
-            binop.restore()
-            binop.updateBinaryGradWeight()
 
         optimizer.step()
+
         if (i) % 100 == 0:
             print (f'Epoch [{epoch+1}/{num_epochs}], Sample [{i * batch_size}/{total_samples}], Loss: {loss.item():.4f}')
+    scheduler.step()
 
-            writer.add_scalar(f'training loss/{dataset_name}',
-                                running_loss / 100,
-                                epoch * len(train_loader) + i)
+            # writer.add_scalar(f'training loss/{dataset_name}',
+            #                     running_loss / 100,
+            #                     epoch * len(train_loader) + i)
 
-                # ...log a Matplotlib Figure showing the model's predictions on a
-                # random mini-batch
-            writer.add_figure(f'predictions vs. actuals/{dataset_name}',
-                            plot_classes_preds(outputs, images, labels),
-                            global_step=epoch * len(train_loader) + i)
-            running_loss = 0.0
+            #     # ...log a Matplotlib Figure showing the model's predictions on a
+            #     # random mini-batch
+            # writer.add_figure(f'predictions vs. actuals/{dataset_name}',
+            #                 plot_classes_preds(outputs, images, labels),
+            #                 global_step=epoch * len(train_loader) + i)
+            # running_loss = 0.0
 
-def eval(bin=False):
+def eval():
     model.eval() 
     times = []
     with torch.no_grad():
         correct = 0
         total = 0
-        if bin:
-            binop.binarization()
 
         for images, labels in test_loader:
             images,labels = images.to(device), labels.to(device)
@@ -107,9 +104,6 @@ def eval(bin=False):
 
             total += labels.size(0)
             correct += (predicted == labels).sum().item() 
-
-        if bin:
-            binop.restore()
 
         accuracy = 100 * correct / total
         print(f'Accuracy of the network on the 10000 test images: {accuracy:.2f} %')
@@ -146,11 +140,16 @@ def write_tensorBoard():
 write_tensorBoard()
 
 for i in range(num_epochs):
-    train(i,bin)
-    eval(bin)
+    train(i)
+    eval()
+
+    
+# model.cpu()
+# export_onnx_qcdq(model, input_shape=(1, 1, 32, 32), export_path="quant_model2.onnx" )
+
+# traced = torch.fx.symbolic_trace(model).print_readable()
 
 
-if bin:
-    binop.binarization()
-torch.jit.trace(model, torch.randn(1, 1, 32, 32))
-torch.jit.save(model.state_dict(),"teste.pt")
+# dummy_input = torch.randn(1, 1, 32, 32).to(device)
+# traced_model = torch.jit.trace(model, dummy_input)
+# torch.jit.save(traced_model,"teste.pt")

@@ -6,6 +6,7 @@ def get_loaders(batch_size):
     train_dataset = torchvision.datasets.CIFAR10(root = './data',
                                                train = True,
                                                transform = transforms.Compose([
+                                                #       transforms.Resize((224, 224)),
                                                       transforms.ToTensor(),
                                                       transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
                                                       ]),
@@ -15,6 +16,7 @@ def get_loaders(batch_size):
     test_dataset = torchvision.datasets.CIFAR10(root = './data',
                                                 train = False,
                                                 transform = transforms.Compose([
+                                                        # transforms.Resize((224, 224)),
                                                         transforms.ToTensor(),
                                                         transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
                                                         ]),

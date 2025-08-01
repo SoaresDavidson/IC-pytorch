@@ -11,6 +11,7 @@ class BinFunction(torch.autograd.Function): #função de ativação
     @staticmethod
     def backward(ctx, grad_output): # type: ignore
         input, = ctx.saved_tensors
+        # print(grad_output)
         grad_input = grad_output.clone()
         grad_input[input.ge(1)] = 0
         grad_input[input.le(-1)] = 0
@@ -58,58 +59,32 @@ class BinarizeAct(nn.Module):
     def forward(self, input):
         return BinConvInput.apply(input)
 
-class BinWeights(torch.autograd.Function): #binarização dos pesos com STE
-    @staticmethod
-    def forward(ctx, x):
-        ctx.save_for_backward(x)
-        return torch.sign(x)
-    
-    @staticmethod
-    def backward(ctx, grad_output): # type: ignore #1 back 2 back
-        input, = ctx.saved_tensors
-        grad_input = grad_output.clone()
-        grad_input[input.ge(1)] = 0
-        grad_input[input.le(-1)] = 0
-        return grad_input
-    
-class BinarizeWeights(nn.Module):
-    def __init__(self):
-        super(BinarizeWeights, self).__init__()
+def binarization(weight): #faz tudo
+    meancenterConvParams(weight)
+    clampConvParams(weight)
 
-    def forward(self, input):
-        return BinWeights.apply(input)
-    
-class BinConvParam(torch.autograd.Function): #binarização da camada convolucional
-    @staticmethod
-    def forward(ctx, weights):
-        ctx.save_for_backward(weights)
-        mean_weight = weights - weights.mean(1, keepdim=True).expand_as(weights)
+    binarizeConvParams(weight)
 
-        clamped_weight = mean_weight.clamp(-1.0, 1.0)
+def meancenterConvParams(param:torch.Tensor): #calcula a média absoluta dos pesos e subtrai dele mesmo (centraliza os pesos)
+    with torch.no_grad():
+        negMean = param.mean(1, keepdim=True).mul(-1).expand_as(param)
+        param.add_(negMean)
 
-        alpha = clamped_weight.abs()\
-                .mean((1,2,3), keepdim=True)\
-                .expand_as(weights)
+def clampConvParams(param:torch.Tensor): #entender depois mas basicamente limita os  pesos para 1 e -1
+    with torch.no_grad():
+        param.copy_(param.clamp(-1.0, 1.0))
 
-        return torch.sign((clamped_weight).mul(alpha))
+def binarizeConvParams(param): # calcula o alpha 
+    with torch.no_grad():
+        dim = param.size() #dimensões
+        # print(f"dimensão:{dim}")
+        if len(dim) == 4: #conlucional = [saída, entrada, altura_kernel, largura_kernel]
+            alpha = param.abs().mean(dim=(1,2,3), keepdim=True).expand(dim) #média dos valores absolutos
+        elif len(dim) == 2: #linear = [entrada, saída]
+            alpha = param.abs().mean(dim=1, keepdim=True).expand(dim)
 
-    @staticmethod
-    def backward(ctx, grad_output): #type: ignore 3 back 4 back
-        weights, = ctx.saved_tensors
-        num_weights = weights.numel()
+        param.copy_(param.sign().mul(alpha)) #type: ignore
 
-        alpha = weights.abs()\
-                .mean((1,2,3), keepdim=True)\
-                .expand_as(weights).clone()
-        
-        alpha[weights.lt(-1.0)] = 0
-        alpha[weights.gt(1.0)] = 0
-
-        alpha_grad = alpha.mul(grad_output)
-
-        mean_grad = grad_output.div(num_weights)
-
-        return mean_grad + alpha_grad #type: ignore
 class Conv2dBinary(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False):
         super().__init__(
@@ -117,49 +92,22 @@ class Conv2dBinary(nn.Conv2d):
         )
     
     def forward(self, input):
-        weight_binarized = BinConvParam.apply(self.weight)
+        weight_binarized = self.weight.detach().clone()
+        binarization(weight_binarized)
 
         output = F.conv2d(
-            input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups #type: ignore
+            input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups 
         ) 
         return output
 
-class BinLinearParam(torch.autograd.Function): # binarização da camada linear
-    @staticmethod
-    def forward(ctx, weights) -> torch.Tensor:
-        ctx.save_for_backward(weights)
-        mean_weight = weights - weights.mean(1, keepdim=True).expand_as(weights)
-        
-        clamped_weight = mean_weight.clamp(-1.0, 1.0)
-
-        alpha = clamped_weight.abs()\
-                .mean(1, keepdim=True)\
-                .expand_as(weights)
-        
-        return torch.sign((clamped_weight).mul(alpha))
-    
-    @staticmethod
-    def backward(ctx, grad_output): #type: ignore 5 back 6 back
-        weights, = ctx.saved_tensors
-        num_weights = weights.numel()
-
-        alpha = weights.abs().mean(1,keepdim=True).expand_as(weights).clone()
-
-        alpha[weights.gt(1.0)] = 0
-        alpha[weights.lt(-1.0)] = 0
-
-        alpha_grad = alpha.mul(grad_output)
-
-        mean_grad = grad_output.div(num_weights)
-
-        return mean_grad + alpha_grad #type: ignore
 class LinearBinary(nn.Linear):
     def __init__(self, in_features, out_features, bias=False):
         super().__init__(in_features, out_features, bias=bias)
-        self.binarize = BinLinearParam.apply
+
 
     def forward(self, input):
-        self.weight.copy_(self.binarize(self.weight))
+        weight_binarized = self.weight.detach().clone()
+        binarization(weight_binarized)
 
         output = F.linear(input, self.weight, self.bias) 
         return output
@@ -271,42 +219,53 @@ class LinearQ(nn.Linear):
         output = F.linear(input, weight_quantized, self.bias) #type: ignore
         return output
    
-class fg(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, input, k):
-        ctx.save_for_backward(input)
-        ctx.k = k
-        return input
+# class fg(torch.autograd.Function):
+#     @staticmethod
+#     def forward(ctx, input, k):
+#         ctx.save_for_backward(input)
+#         ctx.k = k
+#         return input
     
-    @staticmethod
-    def backward(ctx, *grad_outputs):
-        input, = ctx.saved_tensors
-        k = ctx.k
-        grad = grad_outputs[0]
+#     @staticmethod
+#     def backward(ctx, *grad_outputs):
+#         input, = ctx.saved_tensors
+#         k = ctx.k
+#         grad = grad_outputs[0]
 
-        epsilon = 1e-8
-        max_abs = grad.abs().max()
-        scale = max(epsilon, max_abs)
+#         epsilon = 1e-8
+#         max_abs = grad.abs().max()
+#         scale = max(epsilon, max_abs)
 
-        grad_norm = grad / (2*scale)
+#         grad_norm = grad / (2*scale)
         
-        sigma = torch.empty_like(grad).uniform_(-0.5, 0.5)
-        N = sigma/(2 ** k - 1)
+#         sigma = torch.empty_like(grad).uniform_(-0.5, 0.5)
+#         N = sigma/(2 ** k - 1)
 
-        input_q = grad_norm + 0.5 + N
-        quant = uniform_quantize(k)(input_q.clamp(0, 1))
+#         input_q = grad_norm + 0.5 + N
+#         quant = uniform_quantize(k)(input_q.clamp(0, 1))
 
-        grad_quantized = (2 * scale) * (quant - 0.5)
+#         grad_quantized = (2 * scale) * (quant - 0.5)
 
-        return grad_quantized, None
+#         return grad_quantized, None
     
-class QuantizeGradient(nn.Module):
-    def __init__(self, k_bits):
-        super().__init__()
-        self.k = k_bits
+def quantize_gradient(grad, k = 6) -> torch.Tensor | None:
+    # print("funciona")
+    epsilon = 1e-8
+    max_abs = grad.abs().max()
+    scale = max(epsilon, max_abs)
 
-    def forward(self, x):
-        return fg.apply(x, self.k)
+    grad_norm = grad / (2*scale)
+    
+    sigma = torch.empty_like(grad).uniform_(-0.5, 0.5)
+    N = sigma/(2 ** k - 1)
+
+    input_q = grad_norm + 0.5 + N
+    quant = uniform_quantize(k)(input_q.clamp(0, 1))
+
+    grad_quantized = (2 * scale) * (quant - 0.5)
+
+    # return grad_quantized
+    grad.copy_(grad_quantized)
 
 
 
