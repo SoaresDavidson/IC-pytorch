@@ -9,41 +9,45 @@ class AlexNet(nn.Module):
             nn.Conv2d(in_channels=3, out_channels=96,kernel_size=5, stride=2, padding=2),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.BatchNorm2d(96),
 
+            nn.BatchNorm2d(96),
             activation_quantize_fn(a_bit=2),
             Conv2dQ(in_channels=96, out_channels=256,kernel_size=5, stride=1, padding=2, k_bits=1),
             nn.ReLU(inplace=True), 
             nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.BatchNorm2d(256),
             
+            nn.BatchNorm2d(256),
             activation_quantize_fn(a_bit=2),
             Conv2dQ(in_channels=256, out_channels=384,kernel_size=3, stride=1, padding=1, k_bits=1),
-            nn.BatchNorm2d(384),
+            # nn.BatchNorm2d(384),
             nn.ReLU(inplace=True),
 
+            nn.BatchNorm2d(384),
             activation_quantize_fn(a_bit=2),
             Conv2dQ(in_channels=384, out_channels=384,kernel_size=3, stride=1, padding=1, k_bits=1),
             # nn.BatchNorm2d(384),
             nn.ReLU(inplace=True),
             
+            nn.BatchNorm2d(384),
             activation_quantize_fn(a_bit=2),
             Conv2dQ(in_channels=384, out_channels=256,kernel_size=3, stride=1, padding=1, k_bits=1),
             # nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.AdaptiveAvgPool2d(output_size=6)
+            # nn.AdaptiveAvgPool2d(output_size=6)
         )
         self.classifier = nn.Sequential(
+            nn.BatchNorm1d(256),
             activation_quantize_fn(a_bit=2),
-            LinearQ(in_features=9216, out_features=4096, k_bits=1),
+            LinearQ(in_features=256, out_features=4096, k_bits=1),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=0.5),
+            # nn.Dropout(p=0.5),
             
+            nn.BatchNorm1d(4096),
             activation_quantize_fn(a_bit=2),
             LinearQ(in_features=4096, out_features=4096, k_bits=1),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=0.5),
+            # nn.Dropout(p=0.5),
 
             nn.Linear(in_features=4096, out_features=num_classes)
         )

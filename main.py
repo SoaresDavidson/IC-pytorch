@@ -5,7 +5,7 @@ import yaml
 from datasets import load_dataset
 import time
 import models
-from util import BinOp, plot_classes_preds
+from util import BinOp
 from torchvision.utils import make_grid 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,13 +34,13 @@ train_loader, test_loader = load_dataset(name=dataset_name ,batch_size=batch_siz
 
     
 model:nn.Module = models.get_model(model_name)(num_classes).to(device)
+# model.compile()
+torch.set_float32_matmul_precision('high')
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, fused=True)
 # scheduler = torch.optim.lr_scheduler.LRScheduler(optimizer, last_epoch=num_epochs)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs/4, gamma=0.1)
 cost = nn.CrossEntropyLoss()
 writer = SummaryWriter(f'logs/{dataset_name}')
-binop = BinOp(model=model)
-
 
 
 total_samples = len(train_loader.dataset) #type: ignore
@@ -55,7 +55,7 @@ def train(epoch):
         images = images.to(device)
         labels = labels.to(device)
 
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
 
         outputs = model(images)
         # for param in model.parameters():
@@ -71,7 +71,7 @@ def train(epoch):
 
         if (i) % 100 == 0:
             print (f'Epoch [{epoch+1}/{num_epochs}], Sample [{i * batch_size}/{total_samples}], Loss: {loss.item():.4f}')
-    scheduler.step()
+    # scheduler.step()
 
             # writer.add_scalar(f'training loss/{dataset_name}',
             #                     running_loss / 100,
@@ -90,7 +90,6 @@ def eval():
     with torch.no_grad():
         correct = 0
         total = 0
-
         for images, labels in test_loader:
             images,labels = images.to(device), labels.to(device)
 
@@ -137,7 +136,7 @@ def write_tensorBoard():
     writer.add_graph(model, images)
     writer.close()
 
-write_tensorBoard()
+# write_tensorBoard()
 
 for i in range(num_epochs):
     train(i)

@@ -7,7 +7,7 @@ class LenetQ(nn.Module):
         super().__init__()
     
         self.features = nn.Sequential(
-            nn.Conv2d(1, 20, kernel_size=5, stride=1, padding=0),#mudar o canal de entrada pare 3 caso usar a cifar10
+            nn.Conv2d(1, 20, kernel_size=5, stride=1, padding=0, bias=False),#mudar o canal de entrada pare 3 caso usar a cifar10
             nn.BatchNorm2d(20),
             nn.ReLU(), 
             nn.MaxPool2d(kernel_size = 2, stride = 2),

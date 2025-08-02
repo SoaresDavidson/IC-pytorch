@@ -25,11 +25,17 @@ def get_loaders(batch_size):
         
     train_loader = torch.utils.data.DataLoader(dataset = train_dataset,
                                                 batch_size = batch_size,
-                                                shuffle = True)
+                                                shuffle = True,
+                                                pin_memory=True,
+                                                num_workers=16
+                                                )
         
         
     test_loader = torch.utils.data.DataLoader(dataset = test_dataset,
                                                 batch_size = batch_size,
-                                                shuffle = False)
+                                                shuffle = False,
+                                                pin_memory=True,
+                                                num_workers=16
+                                                )
     
     return train_loader, test_loader

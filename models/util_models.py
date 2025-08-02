@@ -59,32 +59,61 @@ class BinarizeAct(nn.Module):
     def forward(self, input):
         return BinConvInput.apply(input)
 
-def binarization(weight): #faz tudo
-    meancenterConvParams(weight)
-    clampConvParams(weight)
+def updateBinaryGradWeight(param):
+        with torch.no_grad():
+            saidas = param[0].nelement() #num de saídas
+            dim = param.size() #dimensões
+            # print(f"saídas:{saidas}")
+            # print(f"dimensão:{dim}")
+            if len(dim) == 4:
+                alpha = param.abs()\
+                        .mean(dim=(1,2,3), keepdim=True)\
+                        .expand(dim).clone()
+            elif len(dim) == 2:
+                alpha = param.abs().mean(1, keepdim=True).expand(dim).clone()
 
-    binarizeConvParams(weight)
+            alpha[param.lt(-1.0)] = 0 #type: ignore
+            alpha[param.gt(1.0)] = 0 #type: ignore
+            # print(param.grad)
+            alpha.mul_(param.grad) #type: ignore #alpha * gradiente dos pesos
+            
+            alpha_add = param.grad.div(saidas)
 
-def meancenterConvParams(param:torch.Tensor): #calcula a média absoluta dos pesos e subtrai dele mesmo (centraliza os pesos)
-    with torch.no_grad():
-        negMean = param.mean(1, keepdim=True).mul(-1).expand_as(param)
-        param.add_(negMean)
+            param.grad = alpha.add(alpha_add).mul(1.0-1.0/dim[1]) #type: ignore 
+            #.mul(1.0-1.0/s[1]) heuristica: input plane scaling
 
-def clampConvParams(param:torch.Tensor): #entender depois mas basicamente limita os  pesos para 1 e -1
-    with torch.no_grad():
-        param.copy_(param.clamp(-1.0, 1.0))
+class BinWeight(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        dim = input.size()
+        with torch.no_grad():
+            negMean = input.mean(1, keepdim=True).mul(-1).expand_as(input)
+            input.add_(negMean)
+            
+            input.copy_(input.clamp(-1.0, 1.0))
 
-def binarizeConvParams(param): # calcula o alpha 
-    with torch.no_grad():
-        dim = param.size() #dimensões
-        # print(f"dimensão:{dim}")
-        if len(dim) == 4: #conlucional = [saída, entrada, altura_kernel, largura_kernel]
-            alpha = param.abs().mean(dim=(1,2,3), keepdim=True).expand(dim) #média dos valores absolutos
-        elif len(dim) == 2: #linear = [entrada, saída]
-            alpha = param.abs().mean(dim=1, keepdim=True).expand(dim)
+            if len(dim) == 4:
+                alpha = input.abs()\
+                        .mean(dim=(1,2,3), keepdim=True)\
+                        .expand(dim).clone()
+            else:
+                alpha = input.abs().mean(1, keepdim=True).expand(dim).clone()
 
-        param.copy_(param.sign().mul(alpha)) #type: ignore
+        ctx.save_for_backward(input, alpha)
 
+        return input.sign().mul(alpha)  
+       
+    @staticmethod
+    def backward(ctx, *grad_output):
+        input, alpha, = ctx.saved_tensors
+        dim = input.size()
+
+        alpha[grad_output[0].lt(-1.0)] = 0 #type: ignore
+        alpha[grad_output[0].gt(1.0)] = 0 #type: ignore
+
+        d = torch.ones(dim)
+        return alpha + d
+   
 class Conv2dBinary(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False):
         super().__init__(
@@ -92,9 +121,9 @@ class Conv2dBinary(nn.Conv2d):
         )
     
     def forward(self, input):
-        weight_binarized = self.weight.detach().clone()
-        binarization(weight_binarized)
-
+        weight_binarized = self.weight.clone()
+        # binarization(weight_binarized)
+        BinWeight(self.weight)
         output = F.conv2d(
             input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups 
         ) 
@@ -106,10 +135,10 @@ class LinearBinary(nn.Linear):
 
 
     def forward(self, input):
-        weight_binarized = self.weight.detach().clone()
-        binarization(weight_binarized)
-
-        output = F.linear(input, self.weight, self.bias) 
+        weight_binarized = self.weight.clone()
+        # binarization(weight_binarized)
+        BinWeight(weight_binarized)
+        output = F.linear(input, weight_binarized, self.bias) 
         return output
     
 class C3(nn.Module):

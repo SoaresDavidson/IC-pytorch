@@ -38,6 +38,7 @@ class BinOp():
             with torch.no_grad():
                 negMean = param.mean(1, keepdim=True).mul(-1).expand_as(param)
                 param.add_(negMean)
+                
 
     def clampConvParams(self): #entender depois mas basicamente limita os  pesos para 1 e -1
         for param in self.target_modules:
@@ -58,7 +59,7 @@ class BinOp():
                     alpha = param.abs().mean(dim=(1,2,3), keepdim=True).expand(dim) #média dos valores absolutos
                 elif len(dim) == 2: #linear = [entrada, saída]
                     alpha = param.abs().mean(dim=1, keepdim=True).expand(dim)
-
+                # print(param.sign())
                 param.copy_(param.sign().mul(alpha)) #type: ignore
 
     def restore(self):
