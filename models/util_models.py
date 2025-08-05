@@ -2,6 +2,34 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+    
+class C3(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.feature_maps = [
+            [0, 1, 2], [1, 2, 3], [2, 3, 4], [3, 4, 5], [0, 4, 5], [0, 1, 5],
+            [0, 1, 2, 3], [1, 2, 3, 4], [2, 3, 4, 5], [0, 3, 4, 5], [0, 1, 4, 5], [0, 1, 2, 5],
+            [0, 1, 3, 4], [1, 2, 4, 5], [0, 2, 3, 5],
+            [0, 1, 2, 3, 4, 5]
+        ]
+
+        self.conv_layer = nn.ModuleList()
+
+        for input in self.feature_maps:
+            conv = nn.Conv2d(in_channels=len(input),out_channels=1,kernel_size=5)
+            self.conv_layer.append(conv)
+        
+    def forward(self, input):
+        c3 = []
+        for i, maps in enumerate(self.feature_maps):
+
+            S2 = input[:, maps, :,:]
+            resultado = self.conv_layer[i](S2)
+            c3.append(resultado)
+
+        return torch.cat(c3, dim=1)
+    
 class BinFunction(torch.autograd.Function): #função de ativação
     @staticmethod
     def forward(ctx, input):
@@ -59,29 +87,6 @@ class BinarizeAct(nn.Module):
     def forward(self, input):
         return BinConvInput.apply(input)
 
-def updateBinaryGradWeight(param):
-        with torch.no_grad():
-            saidas = param[0].nelement() #num de saídas
-            dim = param.size() #dimensões
-            # print(f"saídas:{saidas}")
-            # print(f"dimensão:{dim}")
-            if len(dim) == 4:
-                alpha = param.abs()\
-                        .mean(dim=(1,2,3), keepdim=True)\
-                        .expand(dim).clone()
-            elif len(dim) == 2:
-                alpha = param.abs().mean(1, keepdim=True).expand(dim).clone()
-
-            alpha[param.lt(-1.0)] = 0 #type: ignore
-            alpha[param.gt(1.0)] = 0 #type: ignore
-            # print(param.grad)
-            alpha.mul_(param.grad) #type: ignore #alpha * gradiente dos pesos
-            
-            alpha_add = param.grad.div(saidas)
-
-            param.grad = alpha.add(alpha_add).mul(1.0-1.0/dim[1]) #type: ignore 
-            #.mul(1.0-1.0/s[1]) heuristica: input plane scaling
-
 class BinWeight(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input):
@@ -111,7 +116,7 @@ class BinWeight(torch.autograd.Function):
         alpha[grad_output[0].lt(-1.0)] = 0 #type: ignore
         alpha[grad_output[0].gt(1.0)] = 0 #type: ignore
 
-        d = torch.ones(dim)
+        d = torch.ones(dim).mul(input.sign())
         return alpha + d
    
 class Conv2dBinary(nn.Conv2d):
@@ -121,11 +126,9 @@ class Conv2dBinary(nn.Conv2d):
         )
     
     def forward(self, input):
-        weight_binarized = self.weight.clone()
-        # binarization(weight_binarized)
         BinWeight(self.weight)
         output = F.conv2d(
-            input, weight_binarized, self.bias, self.stride, self.padding, self.dilation, self.groups 
+            input, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups 
         ) 
         return output
 
@@ -135,38 +138,9 @@ class LinearBinary(nn.Linear):
 
 
     def forward(self, input):
-        weight_binarized = self.weight.clone()
-        # binarization(weight_binarized)
-        BinWeight(weight_binarized)
-        output = F.linear(input, weight_binarized, self.bias) 
+        BinWeight(self.weight)
+        output = F.linear(input, self.weight, self.bias) 
         return output
-    
-class C3(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        self.feature_maps = [
-            [0, 1, 2], [1, 2, 3], [2, 3, 4], [3, 4, 5], [0, 4, 5], [0, 1, 5],
-            [0, 1, 2, 3], [1, 2, 3, 4], [2, 3, 4, 5], [0, 3, 4, 5], [0, 1, 4, 5], [0, 1, 2, 5],
-            [0, 1, 3, 4], [1, 2, 4, 5], [0, 2, 3, 5],
-            [0, 1, 2, 3, 4, 5]
-        ]
-
-        self.conv_layer = nn.ModuleList()
-
-        for input in self.feature_maps:
-            conv = nn.Conv2d(in_channels=len(input),out_channels=1,kernel_size=5)
-            self.conv_layer.append(conv)
-        
-    def forward(self, input):
-        c3 = []
-        for i, maps in enumerate(self.feature_maps):
-
-            S2 = input[:, maps, :,:]
-            resultado = self.conv_layer[i](S2)
-            c3.append(resultado)
-
-        return torch.cat(c3, dim=1)
     
 def uniform_quantize(k):
   class qfn(torch.autograd.Function):
@@ -248,34 +222,6 @@ class LinearQ(nn.Linear):
         output = F.linear(input, weight_quantized, self.bias) #type: ignore
         return output
    
-# class fg(torch.autograd.Function):
-#     @staticmethod
-#     def forward(ctx, input, k):
-#         ctx.save_for_backward(input)
-#         ctx.k = k
-#         return input
-    
-#     @staticmethod
-#     def backward(ctx, *grad_outputs):
-#         input, = ctx.saved_tensors
-#         k = ctx.k
-#         grad = grad_outputs[0]
-
-#         epsilon = 1e-8
-#         max_abs = grad.abs().max()
-#         scale = max(epsilon, max_abs)
-
-#         grad_norm = grad / (2*scale)
-        
-#         sigma = torch.empty_like(grad).uniform_(-0.5, 0.5)
-#         N = sigma/(2 ** k - 1)
-
-#         input_q = grad_norm + 0.5 + N
-#         quant = uniform_quantize(k)(input_q.clamp(0, 1))
-
-#         grad_quantized = (2 * scale) * (quant - 0.5)
-
-#         return grad_quantized, None
     
 def quantize_gradient(grad, k = 6) -> torch.Tensor | None:
     # print("funciona")
@@ -295,9 +241,6 @@ def quantize_gradient(grad, k = 6) -> torch.Tensor | None:
 
     # return grad_quantized
     grad.copy_(grad_quantized)
-
-
-
 
 
 # @tf.custom_gradient

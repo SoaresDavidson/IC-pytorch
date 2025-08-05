@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .util_models import Binarize, Conv2dBinary, LinearBinary, updateBinaryGradWeight
+from .util_models import Binarize, Conv2dBinary, LinearBinary
 
 class AlexNet(nn.Module):
     def __init__(self, num_classes):

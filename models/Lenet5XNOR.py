@@ -8,12 +8,12 @@ class LeNet5XNOR(nn.Module):
         super().__init__()
 
         self.features = nn.Sequential(
-            nn.Conv2d(1, 20, kernel_size=5, stride=1, padding=0),
+            nn.Conv2d(1, 20, kernel_size=5, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(20, eps=1e-4, momentum=0.1, affine=False),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size = 2, stride = 2),
  
-            nn.BatchNorm2d(20, eps=1e-4, momentum=0.1, affine=True),
+            # nn.BatchNorm2d(20, eps=1e-4, momentum=0.1, affine=True),
             Binarize(),
             Conv2dBinary(in_channels=20, out_channels=50, kernel_size=5),
             nn.Hardtanh(),
@@ -21,7 +21,7 @@ class LeNet5XNOR(nn.Module):
         )
 
         self.dense = nn.Sequential(
-            nn.BatchNorm1d(50*5*5),
+            # nn.BatchNorm1d(50*5*5),
             Binarize(),
             LinearBinary(50*5*5, 500),
             nn.Hardtanh(),

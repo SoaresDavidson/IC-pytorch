@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-def cu(module,input,output):
-    print(f"->{output.shape}")
 class AlexNet(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
@@ -40,11 +38,6 @@ class AlexNet(nn.Module):
         )
 
         self.fc3 = nn.Linear(in_features=4096, out_features=num_classes, bias=True)
-
-        # for m in self.modules():
-        #     if isinstance(m, nn.MaxPool2d) or isinstance(m, nn.Conv2d):
-        #         m.register_forward_hook(cu)
-        
 
     def forward(self, x):
         # print(x.shape)

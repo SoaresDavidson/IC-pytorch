@@ -3,33 +3,37 @@ import torchvision
 import torchvision.transforms as transforms
 
 def get_loaders(batch_size):
+    transform =  transforms.Compose([
+                                transforms.Resize((224,224)),
+                                transforms.ToTensor(),
+                                transforms.Normalize(mean = (0.1307,), std = (0.3081,))
+                                ])
+    
     train_dataset = torchvision.datasets.FashionMNIST(root = './data',
                                                train = True,
-                                               transform = transforms.Compose([
-                                                      transforms.Resize((32,32)),
-                                                      transforms.ToTensor(),
-                                                      transforms.Normalize(mean = (0.1307,), std = (0.3081,))
-                                                      ]),
+                                               transform = transform,
                                                download = True)
     
     
     test_dataset = torchvision.datasets.FashionMNIST(root = './data',
                                                 train = False,
-                                                transform = transforms.Compose([
-                                                        transforms.Resize((32,32)),
-                                                        transforms.ToTensor(),
-                                                        transforms.Normalize(mean = (0.1325,), std = (0.3105,))
-                                                        ]),
+                                                transform = transform,
                                                 download=True)
         
         
     train_loader = torch.utils.data.DataLoader(dataset = train_dataset,
                                                 batch_size = batch_size,
-                                                shuffle = True)
+                                                shuffle = True,
+                                                pin_memory=True,
+                                                num_workers=16
+                                                )
         
         
     test_loader = torch.utils.data.DataLoader(dataset = test_dataset,
                                                 batch_size = batch_size,
-                                                shuffle = False)
+                                                shuffle = False,
+                                                pin_memory=True,
+                                                num_workers=16
+                                                )
     
     return train_loader, test_loader
