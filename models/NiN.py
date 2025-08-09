@@ -12,7 +12,7 @@ class NiN(nn.Module):
             )
             
         self.features = nn.Sequential(
-            nin_block(out_channels=96,kernel_size=11, stride=4, padding=0),
+            nin_block(out_channels=96,kernel_size=5, stride=2, padding=1),
             nn.MaxPool2d(kernel_size=3, stride=2),
             # nn.BatchNorm2d(96),
 

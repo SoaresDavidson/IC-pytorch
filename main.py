@@ -8,7 +8,7 @@ import models
 from torchvision.utils import make_grid 
 import matplotlib.pyplot as plt
 import numpy as np
-from brevitas.export import export_onnx_qcdq, export_brevitas_onnx, export_qonnx, export_torch_qcdq
+import torchvision.models as models_t
 from torchinfo import summary
 
 
@@ -35,11 +35,13 @@ train_loader, test_loader = load_dataset(name=dataset_name ,batch_size=batch_siz
 
     
 model:nn.Module = models.get_model(model_name)(num_classes).to(device)
+# model = models_t.resnet18()
 i, _ = next(iter(train_loader))
 summary(model, input_size=i.shape) #Ajuste o input para o seu modelo
+print(model.modules)
 # model.compile()
 torch.set_float32_matmul_precision('high') 
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs/4, gamma=0.1)
 cost = nn.CrossEntropyLoss()
 # writer = SummaryWriter(f'logs/{dataset_name}')
@@ -48,7 +50,6 @@ cost = nn.CrossEntropyLoss()
 total_samples = len(train_loader.dataset) #type: ignore
 print(total_samples)
 print(len(train_loader))
-
 def train(epoch):
     model.train()
     running_loss = 0

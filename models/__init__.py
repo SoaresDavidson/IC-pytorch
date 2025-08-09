@@ -1,4 +1,4 @@
-from . import AlexNetQ, Lenet5, Lenet5XNOR, Lenet5Q, AlexNet, AlexNetXNOR, NiN
+from . import AlexNetQ, Lenet5, Lenet5XNOR, Lenet5Q, AlexNet, AlexNetXNOR, NiN, residual
 
 
 
@@ -9,7 +9,8 @@ MODEL_GETTER = {
     'alex': AlexNet.AlexNet,
     'alexX': AlexNetXNOR.AlexNet,
     'alexQ': AlexNetQ.AlexNet,
-    'nin': NiN.NiN
+    'nin': NiN.NiN,
+    'resnet': residual.ResNet
 }
 
 def get_model(name):

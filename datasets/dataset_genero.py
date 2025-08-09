@@ -49,7 +49,7 @@ def get_loaders(batch_size):
     print(f"Encontradas {len(image_paths_and_labels)} imagens.")
 
     data_transforms = T.Compose([
-        T.Resize((32, 32)),
+        T.Resize((224, 224)),
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -67,12 +67,16 @@ def get_loaders(batch_size):
     train_loader = DataLoader(
         dataset=train_ds, 
         batch_size=batch_size, 
-        shuffle=True
+        shuffle=True,
+        pin_memory=True,
+        num_workers=16
     )
     test_loader = DataLoader(
         dataset=val_ds, 
         batch_size=batch_size, 
-        shuffle=False
+        shuffle=False,
+        pin_memory=True,
+        num_workers=16
     )
     
     return train_loader, test_loader
