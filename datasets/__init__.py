@@ -1,4 +1,4 @@
-from . import mnist, fashionMnist, cifar10, imageNet, cifar100, dataset_genero
+from . import mnist, fashionMnist, cifar10, imageNet, cifar100, dataset_genero, pothole
 
 DATASET_GETTER = {
     'mnist': mnist.get_loaders,
@@ -6,7 +6,8 @@ DATASET_GETTER = {
     'cifar10': cifar10.get_loaders,
     'cifar100': cifar100.get_loaders,
     'imagenet': imageNet.get_loaders,
-    'genero': dataset_genero.get_loaders
+    'genero': dataset_genero.get_loaders,
+    'hole': pothole.get_loaders
 }
 
 def load_dataset(name, batch_size):

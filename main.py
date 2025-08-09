@@ -41,15 +41,16 @@ summary(model, input_size=i.shape) #Ajuste o input para o seu modelo
 print(model.modules)
 # model.compile()
 torch.set_float32_matmul_precision('high') 
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs/4, gamma=0.1)
-cost = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4, foreach=True)
+# scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=num_epochs//4, gamma=0.1)
+cost = nn.CrossEntropyLoss(label_smoothing=0.1)
 # writer = SummaryWriter(f'logs/{dataset_name}')
 
 
 total_samples = len(train_loader.dataset) #type: ignore
 print(total_samples)
 print(len(train_loader))
+
 def train(epoch):
     model.train()
     running_loss = 0
@@ -71,7 +72,7 @@ def train(epoch):
 
         if (i) % 100 == 0:
             print (f'Epoch [{epoch+1}/{num_epochs}], Sample [{i * batch_size}/{total_samples}], Loss: {loss.item():.4f}')
-    scheduler.step()
+    # scheduler.step()
 
             # writer.add_scalar(f'training loss/{dataset_name}',
             #                     running_loss / 100,

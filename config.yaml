@@ -6,4 +6,4 @@ hyperparameters:
   lr: 0.1
   num_epochs: 10
 dataset:
-  name: 'cifar10'
+  name: 'hole'

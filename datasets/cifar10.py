@@ -6,7 +6,9 @@ def get_loaders(batch_size):
     train_dataset = torchvision.datasets.CIFAR10(root = './data',
                                                train = True,
                                                transform = t.Compose([
-                                                      t.Resize((224, 224)),
+                                                      t.RandomCrop((32,32), padding=4),
+                                                      t.RandomHorizontalFlip(),
+                                                      t.ColorJitter(0.2, 0.2, 0.2, 0.1),
                                                       t.ToTensor(),
                                                       t.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
                                                       ]),
@@ -16,7 +18,7 @@ def get_loaders(batch_size):
     test_dataset = torchvision.datasets.CIFAR10(root = './data',
                                                 train = False,
                                                 transform = t.Compose([
-                                                        t.Resize((224, 224)),
+                                                        # t.Resize((224, 224)),
                                                         t.ToTensor(),
                                                         t.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
                                                         ]),
